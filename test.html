@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 测试工具</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        h2 {
+            color: #569cd6;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        input, textarea, select {
+            background: #3c3c3c;
+            border: 1px solid #555;
+            color: #d4d4d4;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #007acc;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: monospace;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        button:disabled {
+            background: #3c3c3c;
+            cursor: not-allowed;
+        }
+        .btn-danger {
+            background: #c72e2e;
+        }
+        .btn-danger:hover {
+            background: #d94040;
+        }
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            resize: vertical;
+        }
+        #messages {
+            background: #1e1e1e;
+            border: 1px solid #3e3e42;
+            padding: 10px;
+            height: 400px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        .message {
+            padding: 5px;
+            border-left: 3px solid #569cd6;
+            margin-bottom: 10px;
+            padding-left: 10px;
+        }
+        .message.sent {
+            border-left-color: #4ec9b0;
+        }
+        .message.received {
+            border-left-color: #ce9178;
+        }
+        .message.system {
+            border-left-color: #dcdcaa;
+        }
+        .message .time {
+            color: #858585;
+            font-size: 11px;
+        }
+        .quick-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .quick-actions button {
+            font-size: 12px;
+            padding: 6px 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="color: #4ec9b0; margin-bottom: 20px;">WebSocket 测试工具</h1>
+
+        <div class="section">
+            <h2>连接设置</h2>
+            <div class="input-group">
+                <input type="text" id="wsUrl" value="ws://localhost:2346" style="flex: 1;">
+                <button id="connectBtn" onclick="connect()">连接</button>
+                <button id="disconnectBtn" onclick="disconnect()" class="btn-danger" disabled>断开</button>
+            </div>
+            <div style="color: #858585; font-size: 12px;">
+                状态: <span id="status">未连接</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>快速操作</h2>
+            <div class="quick-actions">
+                <button onclick="quickLogin()">登录</button>
+                <button onclick="quickRegister()">注册</button>
+                <button onclick="quickCreateSession()">创建会话</button>
+                <button onclick="quickJoinSession()">加入会话</button>
+                <button onclick="quickChat()">发送消息</button>
+                <button onclick="quickEndSession()">结束会话</button>
+                <button onclick="quickRecharge()">充值</button>
+                <button onclick="quickTyping()">正在输入</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>发送消息</h2>
+            <textarea id="messageToSend" placeholder='{"type": "login", "user_id": "user1"}'></textarea>
+            <div class="input-group" style="margin-top: 10px;">
+                <button onclick="sendMessage()" style="flex: 1;">发送</button>
+                <button onclick="clearMessages()" class="btn-danger">清空消息</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>消息记录</h2>
+            <div id="messages"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let currentUserId = 'user1';
+        let currentSessionId = null;
+        let targetUserId = 'user2';
+        let messageCount = 0;
+
+        function connect() {
+            const url = document.getElementById('wsUrl').value;
+            ws = new WebSocket(url);
+
+            ws.onopen = function() {
+                document.getElementById('status').textContent = '已连接';
+                document.getElementById('status').style.color = '#4ec9b0';
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                addMessage('系统', 'WebSocket 连接成功', 'system');
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                addMessage('收到', JSON.stringify(data, null, 2), 'received');
+                
+                // 自动保存 session_id
+                if (data.session_id) {
+                    currentSessionId = data.session_id;
+                }
+            };
+
+            ws.onclose = function() {
+                document.getElementById('status').textContent = '未连接';
+                document.getElementById('status').style.color = '#858585';
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                addMessage('系统', 'WebSocket 连接关闭', 'system');
+            };
+
+            ws.onerror = function(error) {
+                addMessage('系统', 'WebSocket 错误: ' + error, 'system');
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function sendMessage() {
+            const message = document.getElementById('messageToSend').value;
+            if (!message) return;
+
+            try {
+                const data = JSON.parse(message);
+                ws.send(JSON.stringify(data));
+                addMessage('发送', JSON.stringify(data, null, 2), 'sent');
+                messageCount++;
+            } catch (e) {
+                alert('JSON 格式错误: ' + e.message);
+            }
+        }
+
+        function addMessage(type, content, className) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${className}`;
+            messageDiv.innerHTML = `
+                <div class="time">${new Date().toLocaleTimeString()}</div>
+                <strong>[${type}]</strong>
+                <pre style="margin: 5px 0 0 0; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(content)}</pre>
+            `;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = '';
+            messageCount = 0;
+        }
+
+        function quickLogin() {
+            const userId = prompt('用户ID:', currentUserId);
+            if (userId) {
+                currentUserId = userId;
+                document.getElementById('messageToSend').value = JSON.stringify({
+                    type: 'login',
+                    user_id: userId
+                }, null, 2);
+                sendMessage();
+            }
+        }
+
+        function quickRegister() {
+            const userId = prompt('用户ID:', currentUserId);
+            const nickname = prompt('昵称:', '测试用户');
+            if (userId) {
+                currentUserId = userId;
+                document.getElementById('messageToSend').value = JSON.stringify({
+                    type: 'register',
+                    user_id: userId,
+                    nickname: nickname
+                }, null, 2);
+                sendMessage();
+            }
+        }
+
+        function quickCreateSession() {
+            const target = prompt('目标用户ID:', targetUserId);
+            const rate = prompt('费率 (元/分钟):', '0.5');
+            if (target && rate) {
+                targetUserId = target;
+                document.getElementById('messageToSend').value = JSON.stringify({
+                    type: 'create_session',
+                    user_id: currentUserId,
+                    target_user_id: target,
+                    rate: parseFloat(rate)
+                }, null, 2);
+                sendMessage();
+            }
+        }
+
+        function quickJoinSession() {
+            const sessionId = prompt('Session ID:', currentSessionId);
+            if (sessionId) {
+                document.getElementById('messageToSend').value = JSON.stringify({
+                    type: 'join_session',
+                    user_id: currentUserId,
+                    session_id: sessionId
+                }, null, 2);
+                sendMessage();
+            }
+        }
+
+        function quickChat() {
+            const msg = prompt('消息内容:', `测试消息 ${messageCount + 1}`);
+            if (msg) {
+                document.getElementById('messageToSend').value = JSON.stringify({
+                    type: 'chat',
+                    user_id: currentUserId,
+                    message: msg
+                }, null, 2);
+                sendMessage();
+            }
+        }
+
+        function quickEndSession() {
+            document.getElementById('messageToSend').value = JSON.stringify({
+                type: 'end_session',
+                user_id: currentUserId
+            }, null, 2);
+            sendMessage();
+        }
+
+        function quickRecharge() {
+            const amount = prompt('充值金额:', '100');
+            if (amount) {
+                document.getElementById('messageToSend').value = JSON.stringify({
+                    type: 'recharge',
+                    user_id: currentUserId,
+                    amount: parseFloat(amount)
+                }, null, 2);
+                sendMessage();
+            }
+        }
+
+        function quickTyping() {
+            document.getElementById('messageToSend').value = JSON.stringify({
+                type: 'typing',
+                user_id: currentUserId,
+                is_typing: true
+            }, null, 2);
+            sendMessage();
+            
+            setTimeout(() => {
+                ws.send(JSON.stringify({
+                    type: 'typing',
+                    user_id: currentUserId,
+                    is_typing: false
+                }));
+            }, 3000);
+        }
+
+        // 快捷键支持
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
