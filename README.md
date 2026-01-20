@@ -45,31 +45,15 @@ php start.php start
 workman-chat-timer/
 ├── composer.json          # Composer 配置
 ├── start.php             # 服务器启动文件
-├── config.php            # 配置文件
 ├── client.html           # 聊天客户端
-├── test.html            # WebSocket 测试工具
 ├── src/
 │   └── ChatServer.php   # 聊天服务器逻辑
-└── vendor/             # Composer 依赖
-```
-
-## 配置
-
-编辑 `config.php` 修改服务器参数：
-
-```php
-return [
-    'websocket' => [
-        'host' => '0.0.0.0',
-        'port' => 2346,
-    ],
-    'user' => [
-        'default_balance' => 100.00,
-    ],
-    'session' => [
-        'default_rate' => 0.50,
-    ],
-];
+├── start.bat            # Windows 启动脚本
+├── stop.bat             # Windows 停止脚本
+├── restart.bat          # Windows 重启脚本
+├── status.bat           # Windows 状态查看脚本
+├── start_daemon.bat     # Windows 守护进程启动
+└── vendor/              # Composer 依赖
 ```
 
 ## 计费说明
@@ -79,27 +63,6 @@ return [
 - 初始余额：100.00 元
 - 双方同时扣费
 - 余额不足自动结束会话
-
-## 常见问题
-
-### 问题：POSIX 函数未定义
-
-此项目已移除对 POSIX 扩展的依赖，可在 Windows/Linux/Mac 上正常运行。
-
-### 问题：端口被占用
-
-修改 `start.php` 中的端口号：
-```php
-$worker = new Worker('websocket://0.0.0.0:2347');
-```
-
-### 问题：依赖安装失败
-
-使用国内镜像：
-```bash
-composer config -g repo.packagist composer https://mirrors.aliyun.com/composer/
-composer install
-```
 
 ## 技术栈
 
